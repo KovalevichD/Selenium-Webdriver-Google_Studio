@@ -23,13 +23,13 @@ sudo npm i -g .
 ```
 
 Open the project in your IDE. Open the **index.js** file that is located in the **src** folder.
-Write to the variables ```const myEmail = 'email'``` and ```const my Password = 'password'``` your email and password and safe this file.
+Write to the variables ```const myEmail = 'email'``` and ```const my Password = 'password'``` your email and password and save this file.
 
 ## How it works
 
 This program opens a new Google Chrome window and uploads or updates creatives in the Studio. Please **do not close or minimize** the Google Chrome window, otherwise the program will cause an error.
 
-You must have a strict folder structure on your machine. The program reads the names of the folders and working with them. Therefore, it is very important to have similar names for the advertiser, campaign, and creatives.
+You must have a strict folder structure on your machine. The program reads the names of the folders and working with them. Therefore, it is very important to have similar names for the advertiser, campaign, and creatives. E.G. **DELVE - UNICEF/Sequenced Stories/DELVE|UNICEF|SequencedStories|Sequence3|Uuriintsolmon|970x250**
 
 It is assumed that the advertiser has already been created in the Studio.
 
@@ -48,3 +48,4 @@ If you want to upload one or more creatives instead of all of them, write the di
 ```bash
 upload 320x50,300x600
 ```
+As the program runs, you can find out which creatives have already been uploaded or updated in the terminal.
