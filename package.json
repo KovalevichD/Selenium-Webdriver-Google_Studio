@@ -1,0 +1,29 @@
+{
+  "name": "studio_automate",
+  "version": "1.0.0",
+  "description": "automate interaction with studio",
+  "main": "src/index.js",
+  "bin": {
+    "@kovalevichdemi/upload": "bin/upload",
+    "upload": "bin/upload"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "studio"
+  ],
+  "author": "Dmitry Kovalevich",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^4.0.0",
+    "chromedriver": "^80.0.1",
+    "esm": "^3.2.25",
+    "geckodriver": "^1.19.1",
+    "selenium-webdriver": "^4.0.0-alpha.5"
+  }
+}
