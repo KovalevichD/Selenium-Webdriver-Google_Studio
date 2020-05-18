@@ -22,18 +22,29 @@ Install tool as global npm package(enter your password)
 sudo npm i -g .
 ```
 
+Open the project in your IDE. Open the **index.js** file that is located in the **src** folder.
+Write to the variables ```const myEmail = 'email'``` and ```const my Password = 'password'``` your email and password and safe this file.
+
 ## How it works
 
-This program opens the HTML file of your creative in the Google Chrome, waiting for the specified amount of time and make the screenshot. The program make screenshot by selector **#wrapper** so please make sure your creative **wrapped by tag** ```<div id="wrapper"></div>```. Also the name of the backup image will be taken from the name of the folder in which the creative is located (example: /666x999/... => backup_666x999.jpg). Size of the image doesn't exceed 40KB. 
+This program opens a new Google Chrome window and uploads or updates creatives in the Studio. Please **do not close or minimize** the Google Chrome window, otherwise the program will cause an error.
+
+You must have a strict folder structure on your machine. The program reads the names of the folders and working with them. Therefore, it is very important to have similar names for the advertiser, campaign, and creatives.
+
+It is assumed that the advertiser has already been created in the Studio.
 
 ## Usage
 
-Open the folder with the creative files for which you want to make backup image. Open Terminal in this folder.
+Open the folder with creatives files which you want to upload ao update. Open Terminal in this folder.
 
 Run the command 
 ```bash
-shot 8 
+upload
 ```
-*8 - number of seconds after which it will be made the backup image (default 10 seconds waiting)*
 
-After executing this line just wait a few seconds - the backup image (example: "backup_300x600") of your creative will be created. Also you can see some information about the image in Terminal after executing.
+Now you can see that Google Chrome opens and the program is running. The program searches for the advertiser and then the campaign. If there is no such company in the Studio, then creates a new one, if there is, then loads it to the existing one. Then all creatives from the folder are loaded.
+
+If you want to upload one or more creatives instead of all of them, write the dimensions separated by commas
+```bash
+upload 320x50,300x600
+```
