@@ -22,6 +22,9 @@ store.creatives = []
 fs.readdirSync(cuurentDir).forEach(creative => {
   let creativesInfo = {}
   let creativePath = path.resolve(cuurentDir, creative)
+
+  if (!fs.statSync(creativePath).isDirectory()) return
+
   let creativeNameSplitted = creative.split('|')
   let creativeDimensions = creativeNameSplitted[creativeNameSplitted.length - 1].split('x')
   let creativeWidth = creativeDimensions[0]
@@ -35,6 +38,8 @@ fs.readdirSync(cuurentDir).forEach(creative => {
   creativesInfo.creativeHeight = creativeHeight
 
   fs.readdirSync(creativePath).forEach(file => {
+    if (file === '.DS_Store') return
+
     let filePath = path.resolve(creativePath, file)
 
     pathsOfFilesArr.push(filePath)
@@ -169,7 +174,7 @@ function isNeedToUpload(creativeFullName, updateOnly) {
 }
 
 async function isCreaviseAlreadyCreated(creative) {
-  //TODOsearching creative
+  //searching creative
 
   let bySearchCreative = By.id('gwt-debug-table-search-input');
   await driver.wait(until.elementLocated(bySearchCreative, 30000));
