@@ -19,7 +19,7 @@ const durationObj = {}
 durationObj.startProgramTime = new Date().getTime()
 
 //write all data from the folder where the script has been running to object 'store'
-const exceptedDirs = ['html', 'src', 'source', 'assets']
+const exceptedDirs = ['html', 'src', 'source', 'assets', 'images', 'test', 'tmp']
 const store = {}
 const cuurentDir = process.cwd()
 const cuurentDirSplitted = cuurentDir.split('/')
@@ -77,7 +77,7 @@ fs.readdirSync(cuurentDir).forEach(creative => {
   store.creatives.push(creativesInfo)
 })
 
-//run(store, updateOnlySpecified)
+run(store, updateOnlySpecified)
 
 async function run(store, updateOnly) {
   const updateMessage = 'updated'
