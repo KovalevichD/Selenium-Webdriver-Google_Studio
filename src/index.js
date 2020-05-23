@@ -19,6 +19,7 @@ const durationObj = {}
 durationObj.startProgramTime = new Date().getTime()
 
 //write all data from the folder where the script has been running to object 'store'
+const exceptedDirs = ['html', 'src', 'source', 'assets']
 const store = {}
 const cuurentDir = process.cwd()
 const cuurentDirSplitted = cuurentDir.split('/')
@@ -30,8 +31,9 @@ store.creatives = []
 fs.readdirSync(cuurentDir).forEach(creative => {
   let creativesInfo = {}
   let creativePath = path.resolve(cuurentDir, creative)
+  let isExceptedDir = isException(exceptedDirs, creative)
 
-  if (!fs.statSync(creativePath).isDirectory()) return
+  if (!fs.statSync(creativePath).isDirectory() || isExceptedDir) return
 
   let creativeNameSplitted = creative.split('|')
   let creativeDimensions = creativeNameSplitted[creativeNameSplitted.length - 1].split('x')
@@ -75,7 +77,7 @@ fs.readdirSync(cuurentDir).forEach(creative => {
   store.creatives.push(creativesInfo)
 })
 
-run(store, updateOnlySpecified)
+//run(store, updateOnlySpecified)
 
 async function run(store, updateOnly) {
   const updateMessage = 'updated'
@@ -391,4 +393,10 @@ async function checkBackup() {
   const checkBackupFunc = 'const size = document.getElementById("gwt-debug-dclk-creative-properties-size").innerHTML;const aTags = document.getElementsByTagName("a");const searchText = "backup_" + size + ".jpg";let found;for (let i = 0; i < aTags.length; i++) {if (aTags[i].textContent == searchText) {found = aTags[i];break;}}const link = found.parentElement.nextElementSibling.nextElementSibling.nextElementSibling.getElementsByTagName("a")[0].click()'
 
   await driver.executeScript(checkBackupFunc)
+}
+
+function isException(arrOfExcepts, currentFolderName) {
+  const isExcepted = arrOfExcepts.includes(currentFolderName.toLowerCase())
+
+  return isExcepted
 }
