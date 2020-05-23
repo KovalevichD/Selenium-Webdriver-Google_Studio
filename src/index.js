@@ -10,6 +10,9 @@ require('chromedriver')
 const driver = new Builder().forBrowser('chrome').build()
 const updateOnlySpecified = process.argv[2] || false
 
+const durationObj = {}
+durationObj.startProgramTime = new Date().getTime()
+
 //write all data from the folder where the script has been running to object 'store'
 const store = {}
 const cuurentDir = process.cwd()
@@ -36,6 +39,7 @@ fs.readdirSync(cuurentDir).forEach(creative => {
   creativesInfo.creativeName = creative
   creativesInfo.creativeWidth = creativeWidth
   creativesInfo.creativeHeight = creativeHeight
+  creativesInfo.folderSize = 0
 
   fs.readdirSync(creativePath).forEach(file => {
     if (file === '.DS_Store') return
@@ -44,12 +48,21 @@ fs.readdirSync(cuurentDir).forEach(creative => {
 
     pathsOfFilesArr.push(filePath)
     namesOfFilesArr.push(file)
+
+    let stats = fs.statSync(filePath)
+    let fileSizeInKBytes = stats["size"]
+    
+    creativesInfo.folderSize += fileSizeInKBytes
   })
 
+  creativesInfo.folderSize = Math.round(creativesInfo.folderSize / 1000) + 'KB'
+
+  //creating string of files for multiple input.SendKeys
   for(let i = 0; i < pathsOfFilesArr.length; i++) {
     i !== pathsOfFilesArr.length - 1 ? filesInString = filesInString + pathsOfFilesArr[i] + '\n' : filesInString = filesInString + pathsOfFilesArr[i]
   }
 
+  creativesInfo.numOfFiles = pathsOfFilesArr.length
   creativesInfo.filesInString = filesInString
   creativesInfo.pathsOfFilesArr = pathsOfFilesArr
   creativesInfo.namesOfFilesArr = namesOfFilesArr
@@ -68,6 +81,9 @@ async function run(store, updateOnly) {
 
 
   for (creative of store.creatives) {
+
+    durationObj.startUploadCreativeTime = new Date().getTime()
+
     let needToUpload = isNeedToUpload(creative.creativeName, updateOnly)
     
     if(updateOnlySpecified && !needToUpload) continue
@@ -79,9 +95,13 @@ async function run(store, updateOnly) {
     } else {
       await uploadCreative(creative, uploadMessage)
     }
-  }  
-}
+  } 
 
+  durationObj.endProgramTime = new Date().getTime()
+  
+  const totalDuration = getDuration(durationObj.startProgramTime, durationObj.endProgramTime)
+  console.log(`Program execution time - ${chalk.bold.blue(totalDuration)}\n`)
+}
 
 async function loginToGoogleAccount(email, password) {
   await driver.manage().window().maximize()  
@@ -207,7 +227,7 @@ async function updateCreative(creative, message) {
   
   if (isTheCreativeNotEmpty) await deleteAllFilesOfCreative()
 
-  await uploadFiles(creative.filesInString, creative.namesOfFilesArr, creative.pathsOfFilesArr, creative.creativeName, message)
+  await uploadFiles(creative.filesInString, creative.namesOfFilesArr, creative.pathsOfFilesArr, creative.creativeName, message, creative.numOfFiles, creative.folderSize)
 
 }
 
@@ -242,7 +262,7 @@ async function deleteAllFilesOfCreative() {
 
 async function uploadCreative(creative, message) {
   await createNewCreative(creative.creativeName, creative.creativeWidth, creative.creativeHeight)
-  await uploadFiles(creative.filesInString, creative.namesOfFilesArr, creative.pathsOfFilesArr, creative.creativeName, message)
+  await uploadFiles(creative.filesInString, creative.namesOfFilesArr, creative.pathsOfFilesArr, creative.creativeName, message, creative.numOfFiles, creative.folderSize)
 }
 
 async function createNewCreative(creativeName, creativeWidth, creativeHeight) {
@@ -300,7 +320,7 @@ async function createNewCreative(creativeName, creativeWidth, creativeHeight) {
     await buttonNewCretiveNext.click()
 }
 
-async function uploadFiles(filesInString, namesOfFilesArr, pathsOfFilesArr, creativeName, message) {
+async function uploadFiles(filesInString, namesOfFilesArr, pathsOfFilesArr, creativeName, message, numOfFiles, folderSize) {
     //waiting for the "drop zone" element
     let byDropZone = By.id('gwt-debug-creativeworkflow-drop-zone');
     await driver.wait(until.elementLocated(byDropZone, 30000));
@@ -319,14 +339,14 @@ async function uploadFiles(filesInString, namesOfFilesArr, pathsOfFilesArr, crea
   
     await driver.sleep(2000)
   
-    await checkAndReaploadFiledFiles(namesOfFilesArr, pathsOfFilesArr, creativeName, message)
+    await checkAndReaploadFiledFiles(namesOfFilesArr, pathsOfFilesArr, creativeName, message, numOfFiles, folderSize)
   
     await driver.findElement(By.id('gwt-debug--breadcrumbs-link-2')).click()
   
     await driver.sleep(3000)
 }
 
-async function checkAndReaploadFiledFiles(namesOfFilesArr, pathsOfFilesArr, creativeName, message) {
+async function checkAndReaploadFiledFiles(namesOfFilesArr, pathsOfFilesArr, creativeName, message, numOfFiles, folderSize) {
   let strSrciptCheckFiledFiles = 'let parent = document.getElementById("gwt-debug-upload-panel-file-list"); let childsOfLastChildren = parent.getElementsByTagName("div")[1].children; let arr = [];for (let i = 0; i < childsOfLastChildren.length; i++) {let fileName = childsOfLastChildren[i].children[0].getAttribute("title");let uploadResult = childsOfLastChildren[i].children[1].children[1].innerHTML;if (uploadResult === "Failed") {arr.push(fileName)};}; return arr;'
   let resultArr = await driver.executeScript(strSrciptCheckFiledFiles)
 
@@ -338,11 +358,24 @@ async function checkAndReaploadFiledFiles(namesOfFilesArr, pathsOfFilesArr, crea
       await driver.sleep(3000)
       
       let recheckArr = await driver.executeScript(strSrciptCheckFiledFiles)
-      const recheckArrWithoutDuplicates = recheckArr.filter((it, index) => index === recheckArr.indexOf(it = it.trim()));
+      const recheckArrWithoutDuplicates = recheckArr.filter((it, index) => index === recheckArr.indexOf(it = it.trim()))
+
       if (recheckArr.length) console.log(`\n${chalk.red('Not fully loaded')} => ${creativeName}\n Error loading the following files => ${chalk.red(recheckArrWithoutDuplicates)}\n`)
       
     } 
   } else {
-      console.log(`\n${chalk.green(`Creative ${message}`)} => ${creativeName}\n`)
+      durationObj.endUploadCreativeTime = new Date().getTime()
+
+      let uploadingDuration = getDuration(durationObj.startUploadCreativeTime, durationObj.endUploadCreativeTime)
+
+      console.log(`\n${chalk.green(`Creative ${message} `)}${chalk.blue(`(Time: ${uploadingDuration}, Files: ${numOfFiles}, Size: ${folderSize})`)} => ${creativeName}\n`)
   }
+}
+
+function getDuration(start, end) {
+  let durationSeconds = (end - start) / 1000
+  let durationMinutes = Math.trunc(durationSeconds / 60)
+  let result = `${durationMinutes}m ${Math.trunc(durationSeconds - (durationMinutes * 60))}s`
+
+  return result
 }
