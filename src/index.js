@@ -11,6 +11,7 @@ const {
 const path = require('path')
 const fs = require('fs')
 const chalk = require('chalk')
+const zipper = require("zip-local")
 require('chromedriver')
 const driver = new Builder().forBrowser('chrome').build()
 const updateOnlySpecified = process.argv[2] || false
@@ -35,44 +36,32 @@ fs.readdirSync(cuurentDir).forEach(creative => {
 
   if (!fs.statSync(creativePath).isDirectory() || isExceptedDir) return
 
+  let zipPath = zipFiles(creativePath)
+
   let creativeNameSplitted = creative.split('|')
   let creativeDimensions = creativeNameSplitted[creativeNameSplitted.length - 1].split('x')
   let creativeWidth = creativeDimensions[0]
   let creativeHeight = creativeDimensions[1]
-  let pathsOfFilesArr = []
-  let namesOfFilesArr = []
-  let filesInString = ''
 
   creativesInfo.creativeName = creative
   creativesInfo.creativeWidth = creativeWidth
   creativesInfo.creativeHeight = creativeHeight
   creativesInfo.folderSize = 0
+  creativesInfo.numOfFiles = 0
 
   fs.readdirSync(creativePath).forEach(file => {
-    if (file === '.DS_Store') return
+    if (file === '.DS_Store' || path.extname(file) === '.zip') return
 
     let filePath = path.resolve(creativePath, file)
-
-    pathsOfFilesArr.push(filePath)
-    namesOfFilesArr.push(file)
-
     let stats = fs.statSync(filePath)
     let fileSizeInKBytes = stats["size"]
 
     creativesInfo.folderSize += fileSizeInKBytes
+    creativesInfo.numOfFiles++
   })
 
   creativesInfo.folderSize = Math.round(creativesInfo.folderSize / 1000) + 'KB'
-
-  //creating string of files for multiple input.SendKeys
-  for (let i = 0; i < pathsOfFilesArr.length; i++) {
-    i !== pathsOfFilesArr.length - 1 ? filesInString = filesInString + pathsOfFilesArr[i] + '\n' : filesInString = filesInString + pathsOfFilesArr[i]
-  }
-
-  creativesInfo.numOfFiles = pathsOfFilesArr.length
-  creativesInfo.filesInString = filesInString
-  creativesInfo.pathsOfFilesArr = pathsOfFilesArr
-  creativesInfo.namesOfFilesArr = namesOfFilesArr
+  creativesInfo.zipFile = zipPath
 
   store.creatives.push(creativesInfo)
 })
@@ -234,7 +223,7 @@ async function updateCreative(creative, message) {
 
   if (isTheCreativeNotEmpty) await deleteAllFilesOfCreative()
 
-  await uploadFiles(creative.filesInString, creative.namesOfFilesArr, creative.pathsOfFilesArr, creative.creativeName, message, creative.numOfFiles, creative.folderSize)
+  await uploadFiles(creative.zipFile, creative.creativeName, message, creative.numOfFiles, creative.folderSize)
 
 }
 
@@ -269,7 +258,7 @@ async function deleteAllFilesOfCreative() {
 
 async function uploadCreative(creative, message) {
   await createNewCreative(creative.creativeName, creative.creativeWidth, creative.creativeHeight)
-  await uploadFiles(creative.filesInString, creative.namesOfFilesArr, creative.pathsOfFilesArr, creative.creativeName, message, creative.numOfFiles, creative.folderSize)
+  await uploadFiles(creative.zipFile, creative.creativeName, message, creative.numOfFiles, creative.folderSize)
 }
 
 async function createNewCreative(creativeName, creativeWidth, creativeHeight) {
@@ -327,7 +316,7 @@ async function createNewCreative(creativeName, creativeWidth, creativeHeight) {
   await buttonNewCretiveNext.click()
 }
 
-async function uploadFiles(filesInString, namesOfFilesArr, pathsOfFilesArr, creativeName, message, numOfFiles, folderSize) {
+async function uploadFiles(zipFile, creativeName, message, numOfFiles, folderSize) {
   //waiting for the "drop zone" element
   let byDropZone = By.id('gwt-debug-creativeworkflow-drop-zone');
   await driver.wait(until.elementLocated(byDropZone, 30000));
@@ -336,7 +325,7 @@ async function uploadFiles(filesInString, namesOfFilesArr, pathsOfFilesArr, crea
 
   //make visible input[type='file'] and upload files
   await driver.executeScript('document.querySelector("input[type=file]").style.height = "50px"; document.querySelector("input[type=file]").style.width = "50px"; document.querySelector("input[type=file]").style.display="block"; document.querySelector("input[type=file]").style.visibility="visible";  ')
-  await driver.findElement(By.xpath("//input[@type='file']")).sendKeys(`${filesInString}`)
+  await driver.findElement(By.xpath("//input[@type='file']")).sendKeys(`${zipFile}`)
 
   //waiting for all files to load
   let byUploadComplete = By.xpath('//*[text()="Upload complete"]');
@@ -344,40 +333,42 @@ async function uploadFiles(filesInString, namesOfFilesArr, pathsOfFilesArr, crea
   let elementUploadComplete = driver.findElement(byUploadComplete);
   await driver.wait(until.elementIsVisible(elementUploadComplete), 120000);
 
+  fs.unlink(zipFile, (err) => {
+    if (err) {
+      console.error(err)
+      return
+    }
+  })
+
   await driver.sleep(2000)
 
-  await checkAndReaploadFiledFiles(namesOfFilesArr, pathsOfFilesArr, creativeName, message, numOfFiles, folderSize)
+  await checkAndReaploadFiledFiles(creativeName, message, numOfFiles, folderSize)
   await driver.sleep(3000)
-  await checkBackup()
 
   await driver.findElement(By.id('gwt-debug--breadcrumbs-link-2')).click()
 
   await driver.sleep(3000)
 }
-//TODO check if it work correctly with .zip
-async function checkAndReaploadFiledFiles(namesOfFilesArr, pathsOfFilesArr, creativeName, message, numOfFiles, folderSize) {
-  let strSrciptCheckFiledFiles = 'let parent = document.getElementById("gwt-debug-upload-panel-file-list"); let childsOfLastChildren = parent.getElementsByTagName("div")[1].children; let arr = [];for (let i = 0; i < childsOfLastChildren.length; i++) {let fileName = childsOfLastChildren[i].children[0].getAttribute("title");let uploadResult = childsOfLastChildren[i].children[1].children[1].innerHTML;if (uploadResult === "Failed") {arr.push(fileName)};}; return arr;'
-  let resultArr = await driver.executeScript(strSrciptCheckFiledFiles)
 
-  if (resultArr.length) {
-    for (let i = 0; i < resultArr.length; i++) {
-      let indexOfFiledFile = namesOfFilesArr.indexOf(resultArr[i])
+async function checkAndReaploadFiledFiles(creativeName, message, numOfFiles, folderSize) {
+  let strSrciptGetBugMessage = 'let bugConsole = document.getElementById("gwt-debug-message-console"); let bugs = bugConsole.getElementsByClassName("AMO0RV-p-i"); let bugMessageArr = []; for (let bug of bugs) {bugMessageArr.push(bug.innerHTML)}; return bugMessageArr;'
+  let bugMessageArr = await driver.executeScript(strSrciptGetBugMessage)
 
-      await driver.findElement(By.xpath("//input[@type='file']")).sendKeys(`${pathsOfFilesArr[indexOfFiledFile]}`)
-      await driver.sleep(3000)
+  if (bugMessageArr.length) {
+    console.log(`\n${chalk.red('Rejected => ')} ${creativeName}`)
 
-      let recheckArr = await driver.executeScript(strSrciptCheckFiledFiles)
-      const recheckArrWithoutDuplicates = recheckArr.filter((it, index) => index === recheckArr.indexOf(it = it.trim()))
-
-      if (recheckArr.length) console.log(`\n${chalk.red('Not fully loaded')} => ${creativeName}\n Error loading the following files => ${chalk.red(recheckArrWithoutDuplicates)}\n`)
-
+    for (let bug of bugMessageArr) {
+      console.log(`${chalk.red('Message => ')} ${bug}\n`)
     }
+
   } else {
     durationObj.endUploadCreativeTime = new Date().getTime()
 
     let uploadingDuration = getDuration(durationObj.startUploadCreativeTime, durationObj.endUploadCreativeTime)
 
-    console.log(`\n${chalk.green(`Creative ${message} `)}${chalk.blue(`(Time: ${uploadingDuration}, Files: ${numOfFiles}, Size: ${folderSize})`)} => ${creativeName}\n`)
+    await checkBackup()
+
+    console.log(`\n${chalk.green(`Creative ${message} `)}` + ` ${chalk.blue(`(Time: ${uploadingDuration}, Files: ${numOfFiles}, Size: ${folderSize})`)}` + `${chalk.green(` => ${creativeName}`)}\n`)
   }
 }
 
@@ -399,4 +390,13 @@ function isException(arrOfExcepts, currentFolderName) {
   const isExcepted = arrOfExcepts.includes(currentFolderName.toLowerCase())
 
   return isExcepted
+}
+
+function zipFiles(creativePath) {
+  const zipName = 'forUpload.zip'
+  const zipPath = path.resolve(creativePath, zipName)
+
+  zipper.sync.zip(creativePath).compress().save(zipPath)
+
+  return zipPath
 }
