@@ -36,6 +36,9 @@ fs.readdirSync(cuurentDir).forEach(creative => {
 
   if (!fs.statSync(creativePath).isDirectory() || isExceptedDir) return
 
+  let needToUpload = isNeedToUpload(creative, updateOnlySpecified)
+  if (!needToUpload) return
+  
   let zipPath = zipFiles(creativePath)
 
   let creativeNameSplitted = creative.split('|')
@@ -82,7 +85,7 @@ async function run(store, updateOnly) {
 
     let needToUpload = isNeedToUpload(creative.creativeName, updateOnly)
 
-    if (updateOnlySpecified && !needToUpload) continue
+    if (!needToUpload) continue
 
     let creativeIsStillThere = await isCreaviseAlreadyCreated(creative.creativeName)
 
@@ -102,46 +105,22 @@ async function run(store, updateOnly) {
 async function loginToGoogleAccount(email, password) {
   await driver.manage().window().maximize()
   await driver.get('https://accounts.google.com/')
-
-  let byGoogleAccountEmail = By.name('identifier');
-  await driver.wait(until.elementLocated(byGoogleAccountEmail, 30000));
-  let googleAccountEmail = driver.findElement(byGoogleAccountEmail);
-  await driver.wait(until.elementIsVisible(googleAccountEmail), 30000);
-  googleAccountEmail.sendKeys(email, Key.RETURN)
-
-  let byGoogleAccountPassword = By.name('password');
-  await driver.wait(until.elementLocated(byGoogleAccountPassword, 30000));
-  let googleAccountPassword = driver.findElement(byGoogleAccountPassword);
-  await driver.wait(until.elementIsVisible(googleAccountPassword), 30000);
-  googleAccountPassword.sendKeys(password, Key.RETURN)
-
+  //enter email
+  await waitAndDoAction(false, 'name', 'identifier', 30000, email)
+  //enter password
+  await waitAndDoAction(false, 'name', 'password', 30000, password)
   await driver.wait(until.titleIs('Google Account'), 10000);
-
   await driver.get('https://www.google.com/doubleclick/studio/#advertisers:')
 }
 
 //search, create or go to the campaigns tab
 async function goToCampaignsTab(advertiser, campaign) {
   //searching advertizer
-  let bySearchAdvertizer = By.id('gwt-debug-table-search-input');
-  await driver.wait(until.elementLocated(bySearchAdvertizer, 30000));
-  let inputSearchAdvertizer = driver.findElement(bySearchAdvertizer);
-  await driver.wait(until.elementIsVisible(inputSearchAdvertizer), 30000);
-  inputSearchAdvertizer.sendKeys(advertiser, Key.RETURN)
-
+  await waitAndDoAction(false, 'id', 'gwt-debug-table-search-input', 30000, advertiser)
   //click on advertizer
-  let byAdvertizer = By.xpath(`//*[text()='${advertiser}']`);
-  await driver.wait(until.elementLocated(byAdvertizer, 30000));
-  let linkAdvertizer = driver.findElement(byAdvertizer);
-  await driver.wait(until.elementIsVisible(linkAdvertizer), 30000);
-  await linkAdvertizer.click()
-
+  await waitAndDoAction(false, 'xpath', `//*[text()='${advertiser}']`, 30000, null)
   //searching campaign
-  let bySearchCampaign = By.id('gwt-debug-table-search-input');
-  await driver.wait(until.elementLocated(bySearchCampaign, 30000));
-  let inputSearchCampaign = driver.findElement(bySearchCampaign);
-  await driver.wait(until.elementIsVisible(inputSearchCampaign), 30000);
-  inputSearchCampaign.sendKeys(campaign, Key.RETURN)
+  await waitAndDoAction(false, 'id', 'gwt-debug-table-search-input', 30000, campaign)
 
   //checking whether the campaign is present. If not it creates a new one below
   let campaignIsStillThere;
@@ -166,12 +145,8 @@ async function goToCampaignsTab(advertiser, campaign) {
     }
 
     //send keys in campaign name input
-    let byCreateCampaign = By.id('gwt-debug-new-campaign-campaignText');
-    await driver.wait(until.elementLocated(byCreateCampaign, 30000));
-    let inputCreateCampaign = driver.findElement(byCreateCampaign);
-    await driver.wait(until.elementIsVisible(inputCreateCampaign), 30000);
-    inputCreateCampaign.sendKeys(store.campaign)
-
+    await waitAndDoAction(false, 'id', 'gwt-debug-new-campaign-campaignText', 30000, campaign)
+    //save campaign
     await driver.findElement(By.id('gwt-debug-save-button')).click()
   }
 }
@@ -191,18 +166,14 @@ function isNeedToUpload(creativeFullName, updateOnly) {
 
 async function isCreaviseAlreadyCreated(creative) {
   //searching creative
-
-  let bySearchCreative = By.id('gwt-debug-table-search-input');
-  await driver.wait(until.elementLocated(bySearchCreative, 30000));
-  let inputSearchCreative = driver.findElement(bySearchCreative);
-  await driver.wait(until.elementIsVisible(inputSearchCreative), 30000);
+  let inputSearchCreative = await waitAndDoAction(true, 'id', 'gwt-debug-table-search-input', 30000, null)
 
   // if the input is disabled it means that there aren't any creatives here yet
-  let isUnoutSearchDisabled = await driver.executeScript('let input = document.getElementById("gwt-debug-table-search-input").disabled; return input;')
+  let isInputSearchDisabled = await driver.executeScript('let input = document.getElementById("gwt-debug-table-search-input").disabled; return input;')
 
-  if (isUnoutSearchDisabled) return false
+  if (isInputSearchDisabled) return false
 
-  inputSearchCreative.sendKeys(creative, Key.RETURN)
+  await inputSearchCreative.sendKeys(creative, Key.RETURN)
 
   let creativeIsStillThere;
   try {
@@ -242,18 +213,9 @@ async function isCreativeEmpty() {
 
 async function deleteAllFilesOfCreative() {
   //click on select all files checkbox
-  let bySelectAllFiles = By.id('gwt-debug-select-all-checkbox-input');
-  await driver.wait(until.elementLocated(bySelectAllFiles, 30000));
-  let checkboxSelectAllFiles = driver.findElement(bySelectAllFiles);
-  await driver.wait(until.elementIsVisible(checkboxSelectAllFiles), 30000);
-  checkboxSelectAllFiles.click()
-
+  await waitAndDoAction(false, 'id', 'gwt-debug-select-all-checkbox-input', 30000, null)
   //click on delete files button
-  let byDeleteFiles = By.id('gwt-debug-creativeworkflow-delete-button');
-  await driver.wait(until.elementLocated(byDeleteFiles, 30000));
-  let buttonDeleteFiles = driver.findElement(byDeleteFiles);
-  await driver.wait(until.elementIsVisible(buttonDeleteFiles), 30000);
-  buttonDeleteFiles.click()
+  await waitAndDoAction(false, 'id', 'gwt-debug-creativeworkflow-delete-button', 30000, null)
 }
 
 async function uploadCreative(creative, message) {
@@ -263,17 +225,9 @@ async function uploadCreative(creative, message) {
 
 async function createNewCreative(creativeName, creativeWidth, creativeHeight) {
   //wait when the button "new creative" appears and click on it
-  let byNewCretive = By.id('gwt-debug-new-creative-dropdown-new-creative-button');
-  await driver.wait(until.elementLocated(byNewCretive, 30000));
-  let buttonNewCretive = driver.findElement(byNewCretive);
-  await driver.wait(until.elementIsVisible(buttonNewCretive), 30000);
-  buttonNewCretive.click()
-
+  await waitAndDoAction(false, 'id', 'gwt-debug-new-creative-dropdown-new-creative-button', 30000, null)
   //waiting for the button "Next" to appear. Hence this means that the entire page has loaded
-  let byNewCreativeNext = By.id('gwt-debug-creativeworkflow-next-button');
-  await driver.wait(until.elementLocated(byNewCreativeNext, 30000));
-  let buttonNewCretiveNext = driver.findElement(byNewCreativeNext);
-  await driver.wait(until.elementIsVisible(buttonNewCretiveNext), 30000);
+  let buttonNewCretiveNext = await waitAndDoAction(true, 'id', 'gwt-debug-creativeworkflow-next-button', 30000, null)
 
   //check if the fields of some input are not still empty. Because AJAX is used
   while (true) {
@@ -283,56 +237,31 @@ async function createNewCreative(creativeName, creativeWidth, creativeHeight) {
   }
 
   //send keys in creative name input
-  let byCreativeName = By.id('gwt-debug-creativeDetail-nameText');
-  await driver.wait(until.elementLocated(byCreativeName, 30000));
-  let inputCreativeName = driver.findElement(byCreativeName);
-  await driver.wait(until.elementIsVisible(inputCreativeName), 30000);
-  inputCreativeName.sendKeys(creativeName)
-
+  await waitAndDoAction(false, 'id', 'gwt-debug-creativeDetail-nameText', 30000, creativeName)
   //click on the "size button" 
   await driver.findElement(By.id('gwt-debug-creativeDetail-sizeText')).click()
-
   //choose user-defined dimensions option
-  let byUserDefined = By.id('gwt-debug-creativeDetail-sizeText-CUSTOM');
-  await driver.wait(until.elementLocated(byUserDefined, 30000));
-  let optionUserDefined = driver.findElement(byUserDefined);
-  await driver.wait(until.elementIsVisible(optionUserDefined), 30000);
-  optionUserDefined.click()
-
+  await waitAndDoAction(false, 'id', 'gwt-debug-creativeDetail-sizeText-CUSTOM', 30000, null)
   //send keys in creative width input
-  let byCreativeWidth = By.id('gwt-debug-creativeDetail-widthText');
-  await driver.wait(until.elementLocated(byCreativeWidth, 30000));
-  let inputCreativeWidth = driver.findElement(byCreativeWidth);
-  await driver.wait(until.elementIsVisible(inputCreativeWidth), 30000);
-  inputCreativeWidth.sendKeys(creativeWidth)
-
+  await waitAndDoAction(false, 'id', 'gwt-debug-creativeDetail-widthText', 30000, creativeWidth)
   //send keys in creative height input
-  let byCreativeHeight = By.id('gwt-debug-creativeDetail-heightText');
-  await driver.wait(until.elementLocated(byCreativeHeight, 30000));
-  let inputCreativeHeight = driver.findElement(byCreativeHeight);
-  await driver.wait(until.elementIsVisible(inputCreativeHeight), 30000);
-  await inputCreativeHeight.sendKeys(creativeHeight)
-
+  await waitAndDoAction(false, 'id', 'gwt-debug-creativeDetail-heightText', 30000, creativeHeight)
+  //save creative
   await buttonNewCretiveNext.click()
 }
 
 async function uploadFiles(zipFile, creativeName, message, numOfFiles, folderSize) {
   //waiting for the "drop zone" element
-  let byDropZone = By.id('gwt-debug-creativeworkflow-drop-zone');
-  await driver.wait(until.elementLocated(byDropZone, 30000));
-  let elementDropZone = driver.findElement(byDropZone);
-  await driver.wait(until.elementIsVisible(elementDropZone), 30000);
+  await waitAndDoAction(true, 'id', 'gwt-debug-creativeworkflow-drop-zone', 30000, null)
 
   //make visible input[type='file'] and upload files
   await driver.executeScript('document.querySelector("input[type=file]").style.height = "50px"; document.querySelector("input[type=file]").style.width = "50px"; document.querySelector("input[type=file]").style.display="block"; document.querySelector("input[type=file]").style.visibility="visible";  ')
   await driver.findElement(By.xpath("//input[@type='file']")).sendKeys(`${zipFile}`)
 
   //waiting for all files to load
-  let byUploadComplete = By.xpath('//*[text()="Upload complete"]');
-  await driver.wait(until.elementLocated(byUploadComplete, 120000));
-  let elementUploadComplete = driver.findElement(byUploadComplete);
-  await driver.wait(until.elementIsVisible(elementUploadComplete), 120000);
+  await waitAndDoAction(true, 'xpath', '//*[text()="Upload complete"]', 120000, null)
 
+  //delete temporary archive
   fs.unlink(zipFile, (err) => {
     if (err) {
       console.error(err)
@@ -341,16 +270,15 @@ async function uploadFiles(zipFile, creativeName, message, numOfFiles, folderSiz
   })
 
   await driver.sleep(2000)
-
-  await checkAndReaploadFiledFiles(creativeName, message, numOfFiles, folderSize)
+  await checkingForErrors(creativeName, message, numOfFiles, folderSize)
   await driver.sleep(3000)
-
+  //back to list with creatives
   await driver.findElement(By.id('gwt-debug--breadcrumbs-link-2')).click()
-
   await driver.sleep(3000)
 }
 
-async function checkAndReaploadFiledFiles(creativeName, message, numOfFiles, folderSize) {
+async function checkingForErrors(creativeName, message, numOfFiles, folderSize) {
+  //checking if there is a bug
   let strSrciptGetBugMessage = 'let bugConsole = document.getElementById("gwt-debug-message-console"); let bugs = bugConsole.getElementsByClassName("AMO0RV-p-i"); let bugMessageArr = []; for (let bug of bugs) {bugMessageArr.push(bug.innerHTML)}; return bugMessageArr;'
   let bugMessageArr = await driver.executeScript(strSrciptGetBugMessage)
 
@@ -399,4 +327,36 @@ function zipFiles(creativePath) {
   zipper.sync.zip(creativePath).compress().save(zipPath)
 
   return zipPath
+}
+
+//if the first param is false - func doesn't click or send keys. It means need to wait to appear an element
+//if the first param is true - func makes "click" if keys is "null". Or it "send keys" if keys is pointed.
+async function waitAndDoAction(onlyWaitFlag, by, identifier, waitTime, keys) {
+  let byMethod
+
+  switch(by) {
+    case 'name':
+      byMethod = By.name
+      break;
+
+    case 'id':
+      byMethod = By.id
+      break;
+
+    case 'xpath':
+      byMethod = By.xpath
+      break;
+  }
+
+  const byElement = byMethod(identifier)
+  await driver.wait(until.elementLocated(byElement, waitTime))
+
+  const element = driver.findElement(byElement)
+  await driver.wait(until.elementIsVisible(element), waitTime)
+
+  if (!onlyWaitFlag) {
+    keys === null ? await element.click() : await element.sendKeys(keys, Key.RETURN)
+  }
+
+  return element
 }
