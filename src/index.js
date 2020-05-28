@@ -69,33 +69,44 @@ fs.readdirSync(cuurentDir).forEach(creative => {
   store.creatives.push(creativesInfo)
 })
 
-run(store, updateOnlySpecified)
+run(store)
 
-async function run(store, updateOnly) {
+async function run(store) {
   const updateMessage = 'updated'
   const uploadMessage = 'uploaded'
 
-  await loginToGoogleAccount(myEmail, myPassword)
-  await goToCampaignsTab(store.advertiser, store.campaign)
-
-
-  for (creative of store.creatives) {
-
-    durationObj.startUploadCreativeTime = new Date().getTime()
-
-    let creativeIsStillThere = await isCreaviseAlreadyCreated(creative.creativeName)
-
-    if (creativeIsStillThere) {
-      await updateCreative(creative, updateMessage)
-    } else {
-      await uploadCreative(creative, uploadMessage)
+  try {
+    await loginToGoogleAccount(myEmail, myPassword)
+    await goToCampaignsTab(store.advertiser, store.campaign)
+  
+    for (creative of store.creatives) {
+  
+      durationObj.startUploadCreativeTime = new Date().getTime()
+  
+      let creativeIsStillThere = await isCreaviseAlreadyCreated(creative.creativeName)
+  
+      if (creativeIsStillThere) {
+        await updateCreative(creative, updateMessage)
+      } else {
+        await uploadCreative(creative, uploadMessage)
+      }
     }
+  
+    durationObj.endProgramTime = new Date().getTime()
+  
+    const totalDuration = getDuration(durationObj.startProgramTime, durationObj.endProgramTime)
+    console.log(`Program execution time - ${chalk.bold.blue(totalDuration)}\n`)
+  } catch(err) {
+    console.log(err.stack)
+    //delete all zip if there was an error
+    store.creatives.forEach(creative => {
+      fs.unlink(creative.zipFile, (err) => {
+        if (err) {
+          return
+        }
+      })
+    })
   }
-
-  durationObj.endProgramTime = new Date().getTime()
-
-  const totalDuration = getDuration(durationObj.startProgramTime, durationObj.endProgramTime)
-  console.log(`Program execution time - ${chalk.bold.blue(totalDuration)}\n`)
 }
 
 async function loginToGoogleAccount(email, password) {
