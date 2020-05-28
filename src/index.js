@@ -83,10 +83,6 @@ async function run(store, updateOnly) {
 
     durationObj.startUploadCreativeTime = new Date().getTime()
 
-    let needToUpload = isNeedToUpload(creative.creativeName, updateOnly)
-
-    if (!needToUpload) continue
-
     let creativeIsStillThere = await isCreaviseAlreadyCreated(creative.creativeName)
 
     if (creativeIsStillThere) {
@@ -152,7 +148,7 @@ async function goToCampaignsTab(advertiser, campaign) {
 }
 
 function isNeedToUpload(creativeFullName, updateOnly) {
-  if (!updateOnly) return false
+  if (!updateOnly) return true
   const updateOnlySplitted = updateOnly.split(',')
 
   for (dimensions of updateOnlySplitted) {
