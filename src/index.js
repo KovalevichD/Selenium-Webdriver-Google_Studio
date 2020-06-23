@@ -15,8 +15,7 @@ const inquirer = require('inquirer')
 const settings = require('../settings.json')
 require('chromedriver')
 
-let driver //new Builder()//.forBrowser('chrome')//.build()
-const updateOnlySpecified = process.argv[2] || false
+let driver
 const myEmail = settings.email
 const myPassword = settings.password
 const rootDir = settings.rootDir
@@ -34,6 +33,8 @@ const store = {}
 store.advertiser = findDirAfter(rootDir, currentDir)
 store.campaign = findDirAfter(store.advertiser, currentDir)
 store.creatives = []
+
+start()
 
 async function start() {
   glob(process.cwd() + '/**/*.html', async function (err, files) {
@@ -144,7 +145,6 @@ async function promptUpload(files) {
     creativeNameSliced.pop()
 
     const creativeName = creativeNameSliced.join('/')
-    //const creativeNameWithoutSpaces = creativeName.replace(/\s/g, '')
 
     return creativeName
   })
@@ -176,9 +176,6 @@ async function promptUpload(files) {
     return files
   }
 }
-
-
-start()
 
 //used to define advertiser and campaign relative to the folder from settings.json
 function findDirAfter(parentDir, currentPath) {
@@ -231,55 +228,6 @@ function buildStoreAndUpload(filesArr, advertiser, campaign) {
   store.creatives.push(creativesInfo)
   })
 }
-// const store = {}
-// const cuurentDir = process.cwd()
-// const cuurentDirSplitted = cuurentDir.split('/')
-
-// store.advertiser = cuurentDirSplitted[cuurentDirSplitted.length - 2]
-// store.campaign = cuurentDirSplitted[cuurentDirSplitted.length - 1]
-// store.creatives = []
-
-// fs.readdirSync(cuurentDir).forEach(creative => {
-//   let creativesInfo = {}
-//   let creativePath = path.resolve(cuurentDir, creative)
-//   let isExceptedDir = isException(exceptedDirs, creative)
-
-//   if (!fs.statSync(creativePath).isDirectory() || isExceptedDir) return
-
-//   let needToUpload = isNeedToUpload(creative, updateOnlySpecified)
-//   if (!needToUpload) return
-
-//   let zipPath = zipFiles(creativePath)
-
-//   let creativeNameSplitted = creative.split('|')
-//   let creativeDimensions = creativeNameSplitted[creativeNameSplitted.length - 1].split('x')
-//   let creativeWidth = creativeDimensions[0]
-//   let creativeHeight = creativeDimensions[1]
-
-//   creativesInfo.creativeName = creative
-//   creativesInfo.creativeWidth = creativeWidth
-//   creativesInfo.creativeHeight = creativeHeight
-//   creativesInfo.folderSize = 0
-//   creativesInfo.numOfFiles = 0
-
-//   fs.readdirSync(creativePath).forEach(file => {
-//     if (file === '.DS_Store' || path.extname(file) === '.zip') return
-
-//     let filePath = path.resolve(creativePath, file)
-//     let stats = fs.statSync(filePath)
-//     let fileSizeInKBytes = stats["size"]
-
-//     creativesInfo.folderSize += fileSizeInKBytes
-//     creativesInfo.numOfFiles++
-//   })
-
-//   creativesInfo.folderSize = Math.round(creativesInfo.folderSize / 1000) + 'KB'
-//   creativesInfo.zipFile = zipPath
-
-//   store.creatives.push(creativesInfo)
-// })
-
-//runUpload(store)
 
 async function runUpload(store) {
   const updateMessage = 'updated'
@@ -367,19 +315,6 @@ async function goToCampaignsTab(advertiser, campaign) {
     //save campaign
     await driver.findElement(By.id('gwt-debug-save-button')).click()
   }
-}
-
-function isNeedToUpload(creativeFullName, updateOnly) {
-  if (!updateOnly) return true
-  const updateOnlySplitted = updateOnly.split(',')
-
-  for (dimensions of updateOnlySplitted) {
-    let isNeedToUploadBoolean = creativeFullName.includes(dimensions)
-
-    if (isNeedToUploadBoolean) return true
-  }
-
-  return false
 }
 
 async function isCreaviseAlreadyCreated(creative) {
@@ -530,34 +465,6 @@ async function checkBackup() {
   const checkBackupFunc = 'const size = document.getElementById("gwt-debug-dclk-creative-properties-size").innerHTML;const aTags = document.getElementsByTagName("a");const searchText = "backup_" + size + ".jpg";let found;for (let i = 0; i < aTags.length; i++) {if (aTags[i].textContent == searchText) {found = aTags[i];break;}}const link = found.parentElement.nextElementSibling.nextElementSibling.nextElementSibling.getElementsByTagName("a")[0].click()'
 
   await driver.executeScript(checkBackupFunc)
-}
-
-// function isException(arrOfExcepts, currentFolderName) {
-//   const isExcepted = arrOfExcepts.includes(currentFolderName.toLowerCase())
-
-//   return isExcepted
-// }
-
-function isException(creativeName, arrOfExcepts) {
-  const arrOfExceptsToLower = arrOfExcepts.map(except => {
-    except.toLowerCase()
-    return except
-  })
-
-  const creativeNameSplitted = creativeName.split('|')
-  const creativeNameSplittedToLower = creativeNameSplitted.map(dir => {
-    dir.toLowerCase()
-    return dir
-  })
-
-  arrOfExceptsToLower.forEach(except => {
-    let isExcepted = creativeNameSplittedToLower.includes(except)
-
-    if (sExcepted) return true
-
-  })
-
-  return false
 }
 
 function zipFiles(creativePath) {
