@@ -12,7 +12,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "createSettings": "node src/buildSettings.js"
   },
   "keywords": [
     "studio"
@@ -23,7 +24,11 @@
     "chalk": "^4.0.0",
     "chromedriver": "^80.0.2",
     "esm": "^3.2.25",
+    "glob": "^7.1.6",
+    "inquirer": "^7.1.0",
+    "nightmare": "^3.0.2",
     "selenium-webdriver": "^4.0.0-alpha.5",
+    "sharp": "^0.25.3",
     "zip-local": "^0.3.4"
   }
 }

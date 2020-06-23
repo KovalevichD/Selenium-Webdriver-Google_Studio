@@ -1,7 +1,3 @@
-//write your data in variables to enter your Google account
-const myEmail = 'email'
-const myPassword = 'password'
-
 const {
   Builder,
   By,
@@ -12,91 +8,306 @@ const path = require('path')
 const fs = require('fs')
 const chalk = require('chalk')
 const zipper = require("zip-local")
+const glob = require('glob')
+const Nightmare = require('nightmare')
+const sharp = require('sharp')
+const inquirer = require('inquirer')
+const settings = require('../settings.json')
 require('chromedriver')
-const driver = new Builder().forBrowser('chrome').build()
+
+let driver //new Builder()//.forBrowser('chrome')//.build()
 const updateOnlySpecified = process.argv[2] || false
+const myEmail = settings.email
+const myPassword = settings.password
+const rootDir = settings.rootDir
+const exceptedDirs = settings.exceptedDirs
+const currentDir = process.cwd()
+
+//for backups
+const sizeImg = 39000
+const qualityImg = 100
 
 const durationObj = {}
 durationObj.startProgramTime = new Date().getTime()
-
 //write all data from the folder where the script has been running to object 'store'
-const exceptedDirs = ['html', 'src', 'source', 'assets', 'images', 'test', 'tmp']
 const store = {}
-const cuurentDir = process.cwd()
-const cuurentDirSplitted = cuurentDir.split('/')
-
-store.advertiser = cuurentDirSplitted[cuurentDirSplitted.length - 2]
-store.campaign = cuurentDirSplitted[cuurentDirSplitted.length - 1]
+store.advertiser = findDirAfter(rootDir, currentDir)
+store.campaign = findDirAfter(store.advertiser, currentDir)
 store.creatives = []
 
-fs.readdirSync(cuurentDir).forEach(creative => {
-  let creativesInfo = {}
-  let creativePath = path.resolve(cuurentDir, creative)
-  let isExceptedDir = isException(exceptedDirs, creative)
+async function start() {
+  glob(process.cwd() + '/**/*.html', async function (err, files) {
 
-  if (!fs.statSync(creativePath).isDirectory() || isExceptedDir) return
+    if (err) {
+      console.log(err)
+    } else {
+      let filesToUpload
+      const filteredFilesArr = deleteExcludedDirs(files, exceptedDirs)
+      const askBack = await inquirer.prompt([{
+        type: 'confirm',
+        message: 'Do you want to make backups?',
+        name: 'backup'
+      }])
 
-  let needToUpload = isNeedToUpload(creative, updateOnlySpecified)
-  if (!needToUpload) return
-  
-  let zipPath = zipFiles(creativePath)
+      if (askBack.backup) {
+        const askTime = await inquirer.prompt([{
+          type: 'input',
+          message: 'Enter the waiting time.',
+          name: 'waitTime',
+          default: 30,
+          validate: function (value) {
+            if (Number.isInteger(+value)) return true
 
-  let creativeNameSplitted = creative.split('|')
-  let creativeDimensions = creativeNameSplitted[creativeNameSplitted.length - 1].split('x')
-  let creativeWidth = creativeDimensions[0]
-  let creativeHeight = creativeDimensions[1]
+            return chalk.red('Please enter an integer!')
+          }
+        }])
 
-  creativesInfo.creativeName = creative
-  creativesInfo.creativeWidth = creativeWidth
-  creativesInfo.creativeHeight = creativeHeight
-  creativesInfo.folderSize = 0
-  creativesInfo.numOfFiles = 0
+        const waitTime = Math.abs(askTime.waitTime) * 1000
+        const promises = []
 
-  fs.readdirSync(creativePath).forEach(file => {
+        for (file of filteredFilesArr) {
+          promises.push(screenShorEach(file, waitTime))
+        }
+
+        console.log('Creation in progress, please wait...')
+
+        await Promise.all(promises).then(() => {
+          console.log(chalk.green('Backups are ready.'))
+        })
+
+        filesToUpload = await promptUpload(filteredFilesArr)
+        const fileteredFilesArr = filterFiles(filteredFilesArr, filesToUpload)
+        buildStoreAndUpload(fileteredFilesArr, store.advertiser, store.campaign)
+        runUpload(store)
+
+
+      } else {
+        filesToUpload = await promptUpload(filteredFilesArr)
+        const fileteredFilesArr = filterFiles(filteredFilesArr, filesToUpload)
+        buildStoreAndUpload(fileteredFilesArr, store.advertiser, store.campaign)
+        runUpload(store)
+      }
+    }
+  })
+}
+
+function filterFiles(initArray, promptArray) {
+  let filteredArr = []
+
+  for (let i = 0; i < initArray.length; i++) {
+    for (let j = 0; j < promptArray.length; j++) {
+      if (initArray[i].indexOf(promptArray[j]) !== -1) {
+        filteredArr.push(initArray[i])
+      }
+    }
+  }
+
+  filteredArr = filteredArr.map(item => {
+    let splittedItem = item.split('/')
+
+    splittedItem = splittedItem.splice(0, splittedItem.length - 1).join('/')
+
+    return splittedItem
+  })
+
+  return filteredArr
+}
+
+function deleteExcludedDirs(initArray, exceptionsArray) {
+  const filteredArray = []
+  const cloneInitArr = JSON.parse(JSON.stringify(initArray))
+
+  for (let i = 0; i < initArray.length; i++) {
+    let initArraySplittedItem = initArray[i].toLowerCase().split('/')
+   
+    for (let j = 0; j < exceptionsArray.length; j++) {
+
+      if (initArraySplittedItem.includes(exceptionsArray[j].toLowerCase())) {
+        cloneInitArr[i] = 'deleted'
+      }
+    }
+  }
+
+  cloneInitArr.forEach(item => {
+    if (item !== 'deleted') filteredArray.push(item)
+  })
+
+  return filteredArray
+}
+
+async function promptUpload(files) {
+  const filteredFilesArr = files.map(file => {
+    const splittedFilePath = file.split('/')
+    const advertiserIndex = splittedFilePath.indexOf(store.advertiser)
+    const creativeNameSliced = splittedFilePath.slice(advertiserIndex)
+
+    creativeNameSliced.pop()
+
+    const creativeName = creativeNameSliced.join('/')
+    //const creativeNameWithoutSpaces = creativeName.replace(/\s/g, '')
+
+    return creativeName
+  })
+
+  const askUploadAll = await inquirer.prompt([{
+    type: 'confirm',
+    message: 'Do you want to upload all your creatives?',
+    name: 'uploadConfirm'
+  }])
+
+  if (!askUploadAll.uploadConfirm) {
+    const askUploadChoose = await inquirer.prompt([{
+      type: 'checkbox',
+      message: 'Select the dimensions to upload!',
+      name: 'uploadConfirm',
+      choices: filteredFilesArr,
+      validate: function (answer) {
+        if (answer.length < 1) {
+          return chalk.red('You must choose at least one creative for upload.')
+        }
+
+        return true;
+      }
+    }])
+
+    return askUploadChoose.uploadConfirm
+
+  } else {
+    return files
+  }
+}
+
+
+start()
+
+//used to define advertiser and campaign relative to the folder from settings.json
+function findDirAfter(parentDir, currentPath) {
+  const splittedCurrentPath = currentPath.split('/')
+  const findParentDir = (element) => element.toLowerCase() === parentDir.toLowerCase()
+  const indexParentDir = splittedCurrentPath.findIndex(findParentDir)
+  const dirNameAfterParentDir = splittedCurrentPath[indexParentDir + 1]
+
+  return dirNameAfterParentDir
+}
+
+function buildStoreAndUpload(filesArr, advertiser, campaign) {
+  filesArr.forEach(creative => {
+    let creativeSplitted = creative.split('/')
+    let creativeName = 'DELVE|'
+
+    const creativesInfo = {}
+    const zipPath = zipFiles(creative)
+    const creativeDimensions = creativeSplitted[creativeSplitted.length - 1].split('x')
+    const creativeWidth = creativeDimensions[0]
+    const creativeHeight = creativeDimensions[1]
+    const campaignIndex = creativeSplitted.findIndex(elem => elem === campaign)
+    
+    creativeSplitted.splice(0, campaignIndex)
+    creativeSplitted = creativeSplitted.join('|')
+
+    creativeName = creativeName + creativeSplitted
+    creativeName = creativeName.replace(/\s/g, '')
+
+    creativesInfo.creativeName = creativeName
+    creativesInfo.creativeWidth = creativeWidth
+    creativesInfo.creativeHeight = creativeHeight
+    creativesInfo.folderSize = 0
+    creativesInfo.numOfFiles = 0
+
+    fs.readdirSync(creative).forEach(file => {
     if (file === '.DS_Store' || path.extname(file) === '.zip') return
 
-    let filePath = path.resolve(creativePath, file)
+    let filePath = path.resolve(creative, file)
     let stats = fs.statSync(filePath)
     let fileSizeInKBytes = stats["size"]
 
     creativesInfo.folderSize += fileSizeInKBytes
     creativesInfo.numOfFiles++
-  })
+    })
 
   creativesInfo.folderSize = Math.round(creativesInfo.folderSize / 1000) + 'KB'
   creativesInfo.zipFile = zipPath
-
+   
   store.creatives.push(creativesInfo)
-})
+  })
+}
+// const store = {}
+// const cuurentDir = process.cwd()
+// const cuurentDirSplitted = cuurentDir.split('/')
 
-run(store)
+// store.advertiser = cuurentDirSplitted[cuurentDirSplitted.length - 2]
+// store.campaign = cuurentDirSplitted[cuurentDirSplitted.length - 1]
+// store.creatives = []
 
-async function run(store) {
+// fs.readdirSync(cuurentDir).forEach(creative => {
+//   let creativesInfo = {}
+//   let creativePath = path.resolve(cuurentDir, creative)
+//   let isExceptedDir = isException(exceptedDirs, creative)
+
+//   if (!fs.statSync(creativePath).isDirectory() || isExceptedDir) return
+
+//   let needToUpload = isNeedToUpload(creative, updateOnlySpecified)
+//   if (!needToUpload) return
+
+//   let zipPath = zipFiles(creativePath)
+
+//   let creativeNameSplitted = creative.split('|')
+//   let creativeDimensions = creativeNameSplitted[creativeNameSplitted.length - 1].split('x')
+//   let creativeWidth = creativeDimensions[0]
+//   let creativeHeight = creativeDimensions[1]
+
+//   creativesInfo.creativeName = creative
+//   creativesInfo.creativeWidth = creativeWidth
+//   creativesInfo.creativeHeight = creativeHeight
+//   creativesInfo.folderSize = 0
+//   creativesInfo.numOfFiles = 0
+
+//   fs.readdirSync(creativePath).forEach(file => {
+//     if (file === '.DS_Store' || path.extname(file) === '.zip') return
+
+//     let filePath = path.resolve(creativePath, file)
+//     let stats = fs.statSync(filePath)
+//     let fileSizeInKBytes = stats["size"]
+
+//     creativesInfo.folderSize += fileSizeInKBytes
+//     creativesInfo.numOfFiles++
+//   })
+
+//   creativesInfo.folderSize = Math.round(creativesInfo.folderSize / 1000) + 'KB'
+//   creativesInfo.zipFile = zipPath
+
+//   store.creatives.push(creativesInfo)
+// })
+
+//runUpload(store)
+
+async function runUpload(store) {
   const updateMessage = 'updated'
   const uploadMessage = 'uploaded'
 
   try {
+    driver = new Builder().forBrowser('chrome').build()
     await loginToGoogleAccount(myEmail, myPassword)
     await goToCampaignsTab(store.advertiser, store.campaign)
-  
+
     for (creative of store.creatives) {
-  
+
       durationObj.startUploadCreativeTime = new Date().getTime()
-  
+
       let creativeIsStillThere = await isCreaviseAlreadyCreated(creative.creativeName)
-  
+
       if (creativeIsStillThere) {
         await updateCreative(creative, updateMessage)
       } else {
         await uploadCreative(creative, uploadMessage)
       }
     }
-  
+
     durationObj.endProgramTime = new Date().getTime()
-  
+
     const totalDuration = getDuration(durationObj.startProgramTime, durationObj.endProgramTime)
     console.log(`Program execution time - ${chalk.bold.blue(totalDuration)}\n`)
-  } catch(err) {
+  } catch (err) {
     console.log(err.stack)
     //delete all zip if there was an error
     store.creatives.forEach(creative => {
@@ -321,10 +532,32 @@ async function checkBackup() {
   await driver.executeScript(checkBackupFunc)
 }
 
-function isException(arrOfExcepts, currentFolderName) {
-  const isExcepted = arrOfExcepts.includes(currentFolderName.toLowerCase())
+// function isException(arrOfExcepts, currentFolderName) {
+//   const isExcepted = arrOfExcepts.includes(currentFolderName.toLowerCase())
 
-  return isExcepted
+//   return isExcepted
+// }
+
+function isException(creativeName, arrOfExcepts) {
+  const arrOfExceptsToLower = arrOfExcepts.map(except => {
+    except.toLowerCase()
+    return except
+  })
+
+  const creativeNameSplitted = creativeName.split('|')
+  const creativeNameSplittedToLower = creativeNameSplitted.map(dir => {
+    dir.toLowerCase()
+    return dir
+  })
+
+  arrOfExceptsToLower.forEach(except => {
+    let isExcepted = creativeNameSplittedToLower.includes(except)
+
+    if (sExcepted) return true
+
+  })
+
+  return false
 }
 
 function zipFiles(creativePath) {
@@ -341,7 +574,7 @@ function zipFiles(creativePath) {
 async function waitAndDoAction(onlyWaitFlag, by, identifier, waitTime, keys) {
   let byMethod
 
-  switch(by) {
+  switch (by) {
     case 'name':
       byMethod = By.name
       break;
@@ -366,4 +599,85 @@ async function waitAndDoAction(onlyWaitFlag, by, identifier, waitTime, keys) {
   }
 
   return element
+}
+
+//GET BACKUPS
+async function screenShorEach(file, waitTime) {
+  const firstWait = Math.ceil(waitTime / 2)
+  const secondWait = waitTime - firstWait
+  const pathOfHtml = 'file://' + file
+  const splittedPathFile = file.split('/')
+  const pathFolder = splittedPathFile.slice(0, splittedPathFile.length - 1).join('/') + '/'
+
+  return new Promise((resolve) => {
+    resolve(screenShot(pathOfHtml, pathFolder, firstWait, secondWait))
+  })
+}
+
+async function screenShot(pathFile, pathFolder, firstWait, secondWait) {
+  const nightmare = new Nightmare({
+    show: false,
+    frame: false,
+    maxHeight: 16384,
+    maxWidth: 16384
+  })
+  let shotName
+  const dimensionsImg = {}
+
+  // get dimensions of the creative
+  await nightmare.goto(pathFile)
+    .wait('body')
+    .evaluate(function () {
+      const wrapper = document.querySelector('#wrapper')
+
+      return {
+        height: wrapper.clientHeight,
+        width: wrapper.clientWidth
+      }
+    })
+    .then(dimensions => {
+      const dimensionsName = dimensions.width + 'x' + dimensions.height
+
+      shotName = 'backup_' + dimensionsName + '.jpg'
+
+      dimensionsImg.width = dimensions.width
+      dimensionsImg.height = dimensions.height
+      ////console.log('Dimensions: ' + dimensionsName)
+    })
+
+  //make a screenshot and put it to the buffer
+  const buffer = await nightmare.viewport(dimensionsImg.width, dimensionsImg.height)
+    .wait(firstWait)
+    .wait(secondWait)
+    .screenshot()
+    .end()
+
+  shotName = pathFolder + shotName
+
+  // resize and set the quality of the screenshot less than 39KB
+  sharpImage(buffer, qualityImg, dimensionsImg.width, dimensionsImg.height, shotName, sizeImg)
+}
+
+function sharpImage(img, qualityImg, widthImg, heightImg, nameImg, sizeImg) {
+  sharp(img)
+    .jpeg({
+      quality: qualityImg,
+      progressive: true
+    })
+    .resize({
+      width: widthImg,
+      height: heightImg,
+    })
+    .toFile(nameImg)
+    .then(function (newFileInfo) {
+      if (newFileInfo.size < sizeImg) {
+        ////console.log('CREATED =>', `${widthImg}x${heightImg}`)
+        return
+      } else {
+        sharpImage(img, qualityImg - 1, widthImg, heightImg, nameImg, sizeImg)
+      }
+    })
+    .catch(function (err) {
+      console.log(err)
+    })
 }
