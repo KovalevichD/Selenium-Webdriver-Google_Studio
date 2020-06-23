@@ -21,9 +21,9 @@ Install tool as global npm package(enter your password)
 ```sh
 sudo npm i -g .
 ```
-
-Open the project in your IDE. Open the **index.js** file that is located in the **src** folder.
-Write to the variables ```const myEmail = 'email'``` and ```const my Password = 'password'``` your email and password and save this file.
+```sh
+npm run-script createSettings
+```
 
 ## How it works
 
