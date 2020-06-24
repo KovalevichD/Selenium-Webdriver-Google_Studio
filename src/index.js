@@ -44,6 +44,9 @@ async function start() {
     } else {
       let filesToUpload
       const filteredFilesArr = deleteExcludedDirs(files, exceptedDirs)
+
+      if (filteredFilesArr.length <= 0) throw new Error('No creatives to upload')
+      
       const askBack = await inquirer.prompt([{
         type: 'confirm',
         message: 'Do you want to make backups?',
