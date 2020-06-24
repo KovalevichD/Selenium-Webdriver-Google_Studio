@@ -71,21 +71,21 @@ async function start() {
         }
 
         console.log('Creation in progress, please wait...')
-
+        
         await Promise.all(promises).then(() => {
           console.log(chalk.green('Backups are ready.'))
         })
 
         filesToUpload = await promptUpload(filteredFilesArr)
         const fileteredFilesArr = filterFiles(filteredFilesArr, filesToUpload)
-        buildStoreAndUpload(fileteredFilesArr, store.advertiser, store.campaign)
+        buildStore(fileteredFilesArr, store.advertiser)
         runUpload(store)
 
 
       } else {
         filesToUpload = await promptUpload(filteredFilesArr)
         const fileteredFilesArr = filterFiles(filteredFilesArr, filesToUpload)
-        buildStoreAndUpload(fileteredFilesArr, store.advertiser, store.campaign)
+        buildStore(fileteredFilesArr, store.advertiser)
         runUpload(store)
       }
     }
@@ -187,7 +187,7 @@ function findDirAfter(parentDir, currentPath) {
   return dirNameAfterParentDir
 }
 
-function buildStoreAndUpload(filesArr, advertiser, campaign) {
+function buildStore(filesArr, advertiser) {
   filesArr.forEach(creative => {
     let creativeSplitted = creative.split('/')
     let creativeName = 'DELVE|'
@@ -197,7 +197,7 @@ function buildStoreAndUpload(filesArr, advertiser, campaign) {
     const creativeDimensions = creativeSplitted[creativeSplitted.length - 1].split('x')
     const creativeWidth = creativeDimensions[0]
     const creativeHeight = creativeDimensions[1]
-    const campaignIndex = creativeSplitted.findIndex(elem => elem === campaign)
+    const campaignIndex = creativeSplitted.findIndex(elem => elem === advertiser)
     
     creativeSplitted.splice(0, campaignIndex)
     creativeSplitted = creativeSplitted.join('|')
