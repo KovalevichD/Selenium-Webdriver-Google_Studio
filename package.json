@@ -22,7 +22,7 @@
   "license": "ISC",
   "dependencies": {
     "chalk": "^4.0.0",
-    "chromedriver": "^80.0.2",
+    "chromedriver": "^83.0.0",
     "esm": "^3.2.25",
     "glob": "^7.1.6",
     "inquirer": "^7.1.0",
